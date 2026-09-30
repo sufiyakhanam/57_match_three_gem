@@ -19,7 +19,7 @@ class Gem:
         self.color = color
         self.target_row = target_row
         self.col = col
-
+        
         self.is_bomb = False
         self.bomb_direction = None
 
@@ -98,69 +98,32 @@ class Board:
         return abs(r1 - r2) + abs(c1 - c2) == 1
 
     def find_matches(self):
-        """Scan grid for horizontal and vertical matches."""
+        """Scan grid for horizontal and vertical 3-in-a-row color matches."""
         matched = set()
-        bomb_matches = []
 
         # Horizontal matches
         for r in range(GRID_SIZE):
-            c = 0
-            while c < GRID_SIZE:
-                if self.grid[r][c] is None:
-                    c += 1
-                    continue
-
-                start = c
-                color = self.grid[r][c].color
-
-                while (
-                    c < GRID_SIZE
-                    and self.grid[r][c] is not None
-                    and self.grid[r][c].color == color
+            for c in range(GRID_SIZE - 2):
+                if (
+                    self.grid[r][c]
+                    and self.grid[r][c + 1]
+                    and self.grid[r][c + 2]
+                    and self.grid[r][c].color == self.grid[r][c + 1].color == self.grid[r][c + 2].color
                 ):
-                    c += 1
-
-                length = c - start
-
-                if length >= 3:
-                    for col in range(start, c):
-                        matched.add((r, col))
-
-                    if length == 4:
-                        bomb_matches.append(
-                            ((r, start + 1), "row")
-                        )
+                    matched.update([(r, c), (r, c + 1), (r, c + 2)])
 
         # Vertical matches
-        for c in range(GRID_SIZE):
-            r = 0
-            while r < GRID_SIZE:
-                if self.grid[r][c] is None:
-                    r += 1
-                    continue
-
-                start = r
-                color = self.grid[r][c].color
-
-                while (
-                    r < GRID_SIZE
-                    and self.grid[r][c] is not None
-                    and self.grid[r][c].color == color
+        for r in range(GRID_SIZE - 2):
+            for c in range(GRID_SIZE):
+                if (
+                    self.grid[r][c]
+                    and self.grid[r + 1][c]
+                    and self.grid[r + 2][c]
+                    and self.grid[r][c].color == self.grid[r + 1][c].color == self.grid[r + 2][c].color
                 ):
-                    r += 1
+                    matched.update([(r, c), (r + 1, c), (r + 2, c)])
 
-                length = r - start
-
-                if length >= 3:
-                    for row in range(start, r):
-                        matched.add((row, c))
-
-                    if length == 4:
-                        bomb_matches.append(
-                            ((start + 1, c), "column")
-                        )
-
-        return matched, bomb_matches
+        return matched
 
     def drop_and_refill(self):
         for c in range(GRID_SIZE):
@@ -187,6 +150,7 @@ class Board:
 
         while True:
             matches = self.find_matches()
+
             if not matches:
                 break
 
@@ -195,8 +159,67 @@ class Board:
             if score_cascades:
                 self.score += len(matches) * 10 * cascade_multiplier
 
+            # Find exactly-4 matches and create bombs.
+            bomb_matches = []
+
+            # Horizontal
+            for r in range(GRID_SIZE):
+                for c in range(GRID_SIZE - 3):
+                    if (
+                        self.grid[r][c]
+                        and self.grid[r][c + 1]
+                        and self.grid[r][c + 2]
+                        and self.grid[r][c + 3]
+                        and self.grid[r][c].color
+                        == self.grid[r][c + 1].color
+                        == self.grid[r][c + 2].color
+                        == self.grid[r][c + 3].color
+                    ):
+                        bomb_matches.append(((r, c + 1), "row"))
+
+            # Vertical
+            for r in range(GRID_SIZE - 3):
+                for c in range(GRID_SIZE):
+                    if (
+                        self.grid[r][c]
+                        and self.grid[r + 1][c]
+                        and self.grid[r + 2][c]
+                        and self.grid[r + 3][c]
+                        and self.grid[r][c].color
+                        == self.grid[r + 1][c].color
+                        == self.grid[r + 2][c].color
+                        == self.grid[r + 3][c].color
+                    ):
+                        bomb_matches.append(((r + 1, c), "column"))
+
+            # Create Bomb Gems before clearing the match.
+            for (r, c), direction in bomb_matches:
+                if self.grid[r][c] is not None:
+                    self.grid[r][c].is_bomb = True
+                    self.grid[r][c].bomb_direction = direction
+
+            # Find bombs that are part of this match.
+            activated_bombs = []
+
+            for r, c in matches:
+                gem = self.grid[r][c]
+
+                if gem is not None and gem.is_bomb:
+                    activated_bombs.append((r, c, gem.bomb_direction))
+
+            # Clear normal matched gems.
             for r, c in matches:
                 self.grid[r][c] = None
+
+            # Clear rows/columns from activated bombs.
+            for r, c, direction in activated_bombs:
+                if direction == "row":
+                    for col in range(GRID_SIZE):
+                        self.grid[r][col] = None
+
+                elif direction == "column":
+                    for row in range(GRID_SIZE):
+                        self.grid[row][c] = None
 
             self.drop_and_refill()
             cascade_multiplier += 1
