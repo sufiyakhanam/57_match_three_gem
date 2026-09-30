@@ -161,12 +161,13 @@ class Board:
 
         # BUG SYMPTOM:
         # Move count decrements on EVERY swap attempt even invalid ones.
-        self.moves_remaining -= 1
+        
 
         if not matches:
             self.swap_gems(pos1, pos2)  # Revert invalid swap
             return False
-
+        self.moves_remaining -= 1
+        
         cleared = self.resolve_matches()
         self.score += cleared * 10
         return True
