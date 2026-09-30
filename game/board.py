@@ -140,16 +140,26 @@ class Board:
                 gem.current_y = -((empty_slots - r) * TILE_SIZE)
                 self.grid[r][c] = gem
 
-    def resolve_matches(self):
+    def resolve_matches(self, score_cascades=False):
         total_cleared = 0
+        cascade_multiplier = 1
+
         while True:
             matches = self.find_matches()
             if not matches:
                 break
+
             total_cleared += len(matches)
+
+            if score_cascades:
+                self.score += len(matches) * 10 * cascade_multiplier
+
             for r, c in matches:
                 self.grid[r][c] = None
+
             self.drop_and_refill()
+            cascade_multiplier += 1
+
         return total_cleared
 
     def process_swap(self, pos1, pos2):
@@ -167,7 +177,7 @@ class Board:
             self.swap_gems(pos1, pos2)  # Revert invalid swap
             return False
         self.moves_remaining -= 1
-        
+
         cleared = self.resolve_matches()
         self.score += cleared * 10
         return True
