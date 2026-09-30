@@ -50,6 +50,11 @@ class Board:
         self.selected = None
         self.score = 0
         self.moves_remaining = max_moves
+
+        self.idle_start_time = pygame.time.get_ticks()
+        self.hint_positions = None
+        self.hint_check_time = 0
+
         self.reset()
 
     def reset(self):
@@ -57,6 +62,11 @@ class Board:
         self.score = 0
         self.moves_remaining = self.max_moves
         self.selected = None
+
+        self.idle_start_time = pygame.time.get_ticks()
+        self.hint_positions = None
+        self.hint_check_time = 0
+
         for r in range(GRID_SIZE):
             for c in range(GRID_SIZE):
                 color = random.choice(GEM_COLORS)
@@ -226,6 +236,36 @@ class Board:
 
         return total_cleared
 
+    def find_hint_swap(self):
+        """Find an adjacent swap that creates a match."""
+        for r in range(GRID_SIZE):
+            for c in range(GRID_SIZE):
+                # Try swapping right
+                if c < GRID_SIZE - 1:
+                    pos1 = (r, c)
+                    pos2 = (r, c + 1)
+
+                    self.swap_gems(pos1, pos2)
+                    matches = self.find_matches()
+                    self.swap_gems(pos1, pos2)
+
+                    if matches:
+                        return pos1, pos2
+
+                # Try swapping down
+                if r < GRID_SIZE - 1:
+                    pos1 = (r, c)
+                    pos2 = (r + 1, c)
+
+                    self.swap_gems(pos1, pos2)
+                    matches = self.find_matches()
+                    self.swap_gems(pos1, pos2)
+
+                    if matches:
+                        return pos1, pos2
+
+        return None
+
     def process_swap(self, pos1, pos2):
         if not self.is_adjacent(pos1, pos2) or self.is_game_over() or self.is_animating():
             return False
@@ -241,6 +281,10 @@ class Board:
             self.swap_gems(pos1, pos2)  # Revert invalid swap
             return False
         self.moves_remaining -= 1
+
+        self.idle_start_time = pygame.time.get_ticks()
+        self.hint_positions = None
+        self.hint_check_time = 0
 
         #cleared = self.resolve_matches()
         #self.score += cleared * 10
@@ -263,6 +307,22 @@ class Board:
                 if self.grid[r][c]:
                     self.grid[r][c].update()
 
+        # Do not show hints while gems are falling.
+        if self.is_animating():
+            self.hint_positions = None
+            self.idle_start_time = pygame.time.get_ticks()
+            return
+
+        current_time = pygame.time.get_ticks()
+
+        # Player has been idle for more than 5 seconds.
+        if current_time - self.idle_start_time >= 5000:
+            if self.hint_positions is None:
+                # Avoid repeatedly searching the board every frame.
+                if current_time - self.hint_check_time >= 1000:
+                    self.hint_check_time = current_time
+                    self.hint_positions = self.find_hint_swap()
+
     def render(self, surface):
         board_rect = pygame.Rect(
             self.offset_x, self.offset_y, GRID_SIZE * TILE_SIZE, GRID_SIZE * TILE_SIZE
@@ -282,6 +342,18 @@ class Board:
                     pygame.draw.rect(
                         surface, (255, 255, 255), tile_rect, width=1, border_radius=10
                     )
+
+                    if self.hint_positions and (r, c) in self.hint_positions:
+                        pulse = (pygame.time.get_ticks() // 150) % 2
+
+                        if pulse:
+                            pygame.draw.rect(
+                                surface,
+                                (255, 255, 255),
+                                tile_rect.inflate(8, 8),
+                                width=4,
+                                border_radius=12,
+                            )
 
                 if self.selected == (r, c):
                     sel_x = self.offset_x + c * TILE_SIZE
