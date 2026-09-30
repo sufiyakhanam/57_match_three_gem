@@ -178,8 +178,9 @@ class Board:
             return False
         self.moves_remaining -= 1
 
-        cleared = self.resolve_matches()
-        self.score += cleared * 10
+        #cleared = self.resolve_matches()
+        #self.score += cleared * 10
+        self.resolve_matches(score_cascades=True)
         return True
 
     def is_game_over(self):
