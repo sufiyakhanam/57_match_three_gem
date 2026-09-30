@@ -122,6 +122,7 @@ class Board:
         return matched
 
     def drop_and_refill(self):
+        for c in range(GRID_SIZE):
             empty_slots = 0
             for r in range(GRID_SIZE - 1, -1, -1):
                 if self.grid[r][c] is None:
